@@ -173,6 +173,8 @@ private:
 		param_t tilt_max_air;
 		param_t land_speed;
 		param_t tilt_max_land;
+		param_t takeoff_speed;
+		param_t tilt_max_takeoff;
 		param_t man_roll_max;
 		param_t man_pitch_max;
 		param_t man_yaw_max;
@@ -185,6 +187,8 @@ private:
 		float tilt_max_air;
 		float land_speed;
 		float tilt_max_land;
+		float takeoff_speed;
+		float tilt_max_takeoff;
 		float man_roll_max;
 		float man_pitch_max;
 		float man_yaw_max;
@@ -373,6 +377,8 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_params_handles.tilt_max_air	= param_find("MPC_TILTMAX_AIR");
 	_params_handles.land_speed	= param_find("MPC_LAND_SPEED");
 	_params_handles.tilt_max_land	= param_find("MPC_TILTMAX_LND");
+	_params_handles.takeoff_speed	= param_find("MPC_TAKEOFF_SPEED");
+	_params_handles.tilt_max_takeoff	= param_find("MPC_TILTMAX_TKF");
 	_params_handles.man_roll_max = param_find("MPC_MAN_R_MAX");
 	_params_handles.man_pitch_max = param_find("MPC_MAN_P_MAX");
 	_params_handles.man_yaw_max = param_find("MPC_MAN_Y_MAX");
@@ -430,6 +436,9 @@ MulticopterPositionControl::parameters_update(bool force)
 		param_get(_params_handles.land_speed, &_params.land_speed);
 		param_get(_params_handles.tilt_max_land, &_params.tilt_max_land);
 		_params.tilt_max_land = math::radians(_params.tilt_max_land);
+		param_get(_params_handles.takeoff_speed, &_params.takeoff_speed);
+		param_get(_params_handles.tilt_max_takeoff, &_params.tilt_max_takeoff);
+		_params.tilt_max_takeoff = math::radians(_params.tilt_max_takeoff);
 
 		float v;
 		param_get(_params_handles.xy_p, &v);
@@ -1096,6 +1105,11 @@ MulticopterPositionControl::task_main()
 					_vel_sp(2) = _params.land_speed;
 				}
 
+				/* use constant climb rate during takeoff, ignore altitude setpoint */
+				if (!_control_mode.flag_control_manual_enabled && _pos_sp_triplet.current.valid && _pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF && _pos(2) < _pos_sp_triplet.current.z) {
+					_vel_sp(2) = _params.takeoff_speed;
+				}
+
 				_global_vel_sp.vx = _vel_sp(0);
 				_global_vel_sp.vy = _vel_sp(1);
 				_global_vel_sp.vz = _vel_sp(2);
@@ -1181,6 +1195,17 @@ MulticopterPositionControl::task_main()
 					  	_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_LAND) {
 						/* limit max tilt and min lift when landing */
 						tilt_max = _params.tilt_max_land;
+
+						if (thr_min < 0.0f) {
+							thr_min = 0.0f;
+						}
+					}
+
+					/* adjust limits for takeoff mode */
+					if (!_control_mode.flag_control_manual_enabled && _pos_sp_triplet.current.valid &&
+						_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF) {
+						/* limit max tilt and min lift during takeoff */
+						tilt_max = _params.tilt_max_takeoff;
 
 						if (thr_min < 0.0f) {
 							thr_min = 0.0f;
