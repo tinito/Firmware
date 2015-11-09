@@ -957,6 +957,7 @@ MulticopterPositionControl::task_main()
 	bool reset_int_xy = true;
 	bool reset_yaw_sp = true;
 	bool was_armed = false;
+	bool need_takeoff = true;
 
 	hrt_abstime t_prev = 0;
 
@@ -1000,6 +1001,7 @@ MulticopterPositionControl::task_main()
 			reset_int_z = true;
 			reset_int_xy = true;
 			reset_yaw_sp = true;
+			need_takeoff = true;
 		}
 
 		/* reset yaw and altitude setpoint for VTOL which are in fw mode */
@@ -1106,9 +1108,12 @@ MulticopterPositionControl::task_main()
 				}
 
 				/* use constant climb rate during takeoff, ignore altitude setpoint */
-				if (!_control_mode.flag_control_manual_enabled && _pos_sp_triplet.current.valid && (_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF) && (_pos(2) > _pos_sp_triplet.current.z)) {
-					_vel_sp(2) = -_params.takeoff_speed;
-					//mavlink_log_info(_mavlink_fd, "T");
+				if (!_control_mode.flag_control_manual_enabled && _pos_sp_triplet.current.valid && (_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF) && need_takeoff) {
+					if (_pos(2) < _pos_sp_triplet.current.z) {
+						need_takeoff = false;
+					} else {
+						_vel_sp(2) = -_params.takeoff_speed;
+					}
 				}
 
 				_global_vel_sp.vx = _vel_sp(0);
