@@ -377,7 +377,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_params_handles.tilt_max_air	= param_find("MPC_TILTMAX_AIR");
 	_params_handles.land_speed	= param_find("MPC_LAND_SPEED");
 	_params_handles.tilt_max_land	= param_find("MPC_TILTMAX_LND");
-	_params_handles.takeoff_speed	= param_find("MPC_TAKEOFF_SPEED");
+	_params_handles.takeoff_speed	= param_find("MPC_TKF_SPEED");
 	_params_handles.tilt_max_takeoff	= param_find("MPC_TILTMAX_TKF");
 	_params_handles.man_roll_max = param_find("MPC_MAN_R_MAX");
 	_params_handles.man_pitch_max = param_find("MPC_MAN_P_MAX");
@@ -1106,8 +1106,9 @@ MulticopterPositionControl::task_main()
 				}
 
 				/* use constant climb rate during takeoff, ignore altitude setpoint */
-				if (!_control_mode.flag_control_manual_enabled && _pos_sp_triplet.current.valid && _pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF && _pos(2) < _pos_sp_triplet.current.z) {
-					_vel_sp(2) = _params.takeoff_speed;
+				if (!_control_mode.flag_control_manual_enabled && _pos_sp_triplet.current.valid && (_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF) && (_pos(2) > _pos_sp_triplet.current.z)) {
+					_vel_sp(2) = -_params.takeoff_speed;
+					//mavlink_log_info(_mavlink_fd, "T");
 				}
 
 				_global_vel_sp.vx = _vel_sp(0);
@@ -1167,6 +1168,7 @@ MulticopterPositionControl::task_main()
 					/* thrust vector in NED frame */
 					math::Vector<3> thrust_sp = vel_err.emult(_params.vel_p) + vel_err_d.emult(_params.vel_d) + thrust_int;
 
+
 					if (!_control_mode.flag_control_velocity_enabled) {
 						thrust_sp(0) = 0.0f;
 						thrust_sp(1) = 0.0f;
@@ -1175,6 +1177,7 @@ MulticopterPositionControl::task_main()
 					if (!_control_mode.flag_control_climb_rate_enabled) {
 						thrust_sp(2) = 0.0f;
 					}
+
 
 					/* limit thrust vector and check for saturation */
 					bool saturation_xy = false;
@@ -1206,10 +1209,11 @@ MulticopterPositionControl::task_main()
 						_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF) {
 						/* limit max tilt and min lift during takeoff */
 						tilt_max = _params.tilt_max_takeoff;
+					}
 
-						if (thr_min < 0.0f) {
-							thr_min = 0.0f;
-						}
+					if (_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF) {
+						int a = thrust_sp(2) * 100;
+						mavlink_log_info(_mavlink_fd, "%d", a);
 					}
 
 					/* limit min lift */
